@@ -19,21 +19,20 @@ Adafruit_NeoPixel boardLED = Adafruit_NeoPixel(1, onBoardLED, NEO_GRB + NEO_KHZ8
 Adafruit_NeoPixel stripLEDs = Adafruit_NeoPixel(7, LEDStrip, NEO_GRBW);
 
 // Start dim (0).
-double brightness = 0.0;
+float brightness = 255.0;
 
-TweenDuino *opacityTween;
+TweenDuino::Tween *opacityTween;
 
 void setup() {
   
     Serial.begin(9600);
-    while(!Serial); // for the Arduino Leonardo/Micro only
 
     boardLED.begin();
     stripLEDs.begin();
 
     cs_2_3.set_CS_AutocaL_Millis(0xFFFFFFFF);     // turn off autocalibrate on channel 1 - just as an example
-  
-    opacityTween = TweenDuino::to(brightness, 5000UL, 255);
+
+    opacityTween = TweenDuino::Tween::to(brightness, 3000UL, 0.0);
 
     // These might help keep us from going blind during dev by limiting the max brightness.
     // Note: You shouldn't be using this in NeoPixel animations.  Call it once.
@@ -47,17 +46,19 @@ void setup() {
 }
 void loop() {
     long loopStart = millis();
-    long total1 =  cs_2_3.capacitiveSensor(30);
-    Serial.print(total1);  Serial.println(brightness);
+    long total1 = 0;
+    //long total1 =  cs_2_3.capacitiveSensor(30);
+    //Serial.println(total1);  //Serial.println(brightness);
+    //Serial.println(loopStart);
     opacityTween->update(loopStart);
 
-    if (!opacityTween->isActive()) {
-      brightness = 0;
+    if (opacityTween->isComplete()) {
+      brightness = 0.0;
     }
     
     // Override brightness if touching
-    if (total1 > 400) {
-      brightness = 255;
+    if (total1 > 700) {
+      brightness = 255.0;
     }
 
     // 3 colors: Red, Green, Blue whose values range from 0-255.
@@ -70,8 +71,6 @@ void loop() {
     // This sends the updated pixel color to the hardware.
     stripLEDs.show();
     boardLED.show();
-
-    delay(100);
 }
 
 void setStripColors(Adafruit_NeoPixel &strip, uint32_t color) {

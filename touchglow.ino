@@ -21,7 +21,9 @@ Adafruit_NeoPixel stripLEDs = Adafruit_NeoPixel(7, LEDStrip, NEO_GRBW);
 // Start dim (0).
 float brightness = 255.0;
 
-TweenDuino::Tween *opacityTween;
+TweenDuino::Tween *fadeIn;
+TweenDuino::Tween *fadeOut;
+TweenDuino::Timeline timeline;
 
 void setup() {
   
@@ -32,7 +34,11 @@ void setup() {
 
     cs_2_3.set_CS_AutocaL_Millis(0xFFFFFFFF);     // turn off autocalibrate on channel 1 - just as an example
 
-    opacityTween = TweenDuino::Tween::to(brightness, 3000UL, 0.0);
+    fadeOut = TweenDuino::Tween::to(brightness, 500UL, 0.0);
+    fadeIn = TweenDuino::Tween::to(brightness, 2500UL, 255.0);
+
+    timeline.add(*fadeOut);
+    timeline.add(*fadeIn);
 
     // These might help keep us from going blind during dev by limiting the max brightness.
     // Note: You shouldn't be using this in NeoPixel animations.  Call it once.
@@ -50,9 +56,9 @@ void loop() {
     //long total1 =  cs_2_3.capacitiveSensor(30);
     //Serial.println(total1);  //Serial.println(brightness);
     //Serial.println(loopStart);
-    opacityTween->update(loopStart);
+    timeline.update(loopStart);
 
-    if (opacityTween->isComplete()) {
+    if (fadeIn->isComplete()) {
       brightness = 0.0;
     }
     

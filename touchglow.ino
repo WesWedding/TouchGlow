@@ -19,10 +19,8 @@ Adafruit_NeoPixel boardLED = Adafruit_NeoPixel(1, onBoardLED, NEO_GRB + NEO_KHZ8
 Adafruit_NeoPixel stripLEDs = Adafruit_NeoPixel(7, LEDStrip, NEO_GRBW);
 
 // Start dim (0).
-float brightness = 255.0;
+float brightness = 0.0;
 
-TweenDuino::Tween *fadeIn;
-TweenDuino::Tween *fadeOut;
 TweenDuino::Timeline timeline;
 
 void setup() {
@@ -34,11 +32,7 @@ void setup() {
 
     cs_2_3.set_CS_AutocaL_Millis(0xFFFFFFFF);     // turn off autocalibrate on channel 1 - just as an example
 
-    fadeOut = TweenDuino::Tween::to(brightness, 500UL, 0.0);
-    fadeIn = TweenDuino::Tween::to(brightness, 2500UL, 255.0);
-
-    timeline.add(*fadeOut);
-    timeline.add(*fadeIn);
+    makeSOSTimeline(timeline);
 
     // These might help keep us from going blind during dev by limiting the max brightness.
     // Note: You shouldn't be using this in NeoPixel animations.  Call it once.
@@ -49,6 +43,8 @@ void setup() {
     // stored from before a reset or a crash.
     boardLED.show();
     stripLEDs.show();
+
+    delay(4000);
 }
 void loop() {
     long loopStart = millis();
@@ -58,7 +54,7 @@ void loop() {
     //Serial.println(loopStart);
     timeline.update(loopStart);
 
-    if (fadeIn->isComplete()) {
+    if (timeline.isComplete()) {
       brightness = 0.0;
     }
     
@@ -82,7 +78,20 @@ void loop() {
 void setStripColors(Adafruit_NeoPixel &strip, uint32_t color) {
     const int numPixels = strip.numPixels();
 
-    for(int i=0;i<numPixels;i++) {
+    for (int i=0;i<numPixels;i++) {
         strip.setPixelColor(i, color);
     }
+}
+
+
+void makeSOSTimeline(TweenDuino::Timeline &timeline) {
+  // Dot
+  timeline.add(*TweenDuino::Tween::to(brightness,500UL, 255.0));
+  timeline.add(*TweenDuino::Tween::to(brightness,500UL, 0.0));
+  // Dot
+  timeline.add(*TweenDuino::Tween::to(brightness,500UL, 255.0));
+  timeline.add(*TweenDuino::Tween::to(brightness,500UL, 0.0));
+  // Dot
+  timeline.add(*TweenDuino::Tween::to(brightness,500UL, 255.0));
+  timeline.add(*TweenDuino::Tween::to(brightness,500UL, 0.0));
 }

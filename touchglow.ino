@@ -8,7 +8,7 @@
 #include <TweenDuino.h>
 #include <Adafruit_NeoPixel.h>
 #include <CapacitiveSensor.h>
-#include <MemoryFree.h>
+//#include <MemoryFree.h>
 
 #define TOUCH_THRESHOLD 300
 
@@ -19,30 +19,36 @@ const int LEDStripPin = 9; // My pixel strip's data line is on pin 9.
 const int capSensorPin = 2;
 const int capReadPin = 3;
 
+// This is used in loop() to flag whether capacative touching should be checked.
 bool shouldReadTouch;
 
-CapacitiveSensor   cs_2_3 = CapacitiveSensor(capReadPin,capSensorPin);        // 10M resistor between pins 2 & 3, pin 2 is sensor pin, add a wire and or foil if desired
+CapacitiveSensor   capSensor = CapacitiveSensor(capReadPin,capSensorPin);        // 10M resistor between pins 2 & 3, pin 2 is sensor pin, add a wire and or foil if desired
 Adafruit_NeoPixel boardLED = Adafruit_NeoPixel(1, onBoardLEDPin, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel stripLEDs = Adafruit_NeoPixel(7, LEDStripPin, NEO_GRBW);
 
-// Start dim (0).
+// This value will be used to set the brightness of LEDs.
 float brightness = 0.0;
 
+// This Timeline will be used to modify the brightness value.
 TweenDuino::Timeline timeline;
 
 void setup() {
- 
+
+    // Set the Serial output to 9600 baud.
     Serial.begin(9600);
+
+    // Initialize the two LED groups.
     boardLED.begin();
     stripLEDs.begin();
 
-    cs_2_3.set_CS_AutocaL_Millis(0xFFFFFFFF);     // turn off autocalibrate on channel 1 - just as an example
 
-    Serial.print("startmem=");
-    Serial.println(freeMemory());
-    adil(timeline);
-    Serial.print("aftertl=");
-    Serial.println(freeMemory());
+    capSensor.set_CS_AutocaL_Millis(0xFFFFFFFF);     // turn off autocalibrate on channel 1 - just as an example
+
+    //Serial.print("startmem=");
+    //Serial.println(freeMemory());
+    addTweensTo(timeline);
+    //Serial.print("aftertl=");
+    //Serial.println(freeMemory());
 
     // These might help keep us from going blind during dev by limiting the max brightness.
     // Note: You shouldn't be using this in NeoPixel animations.  Call it once.
@@ -56,14 +62,17 @@ void setup() {
     shouldReadTouch = false;
 }
 void loop() {
+    // millis() tells us how much time has passed (in milliseconds) since this sketch started running.
     long loopStart = millis();
-    
+    // Tell the Timeline what time it is now.
     timeline.update(loopStart);
 
-    long capReading = 0;
+    long touchStrength = 0;
     if (shouldReadTouch) {
-      capReading = cs_2_3.capacitiveSensor(30);
-      Serial.print("Touch value: "); Serial.println(capReading);
+       // Take 30 samples from the capactive sensor to get a value.
+      touchStrength = capSensor.capacitiveSensor(30);
+      // Show the result.
+      Serial.print("Touch value: "); Serial.println(touchStrength);
     }
 
     if (timeline.isComplete()) {
@@ -71,17 +80,21 @@ void loop() {
       shouldReadTouch = true;
     }
     
-    // Override brightness if touching
-    if (capReading > TOUCH_THRESHOLD) {
+    // If it seems like we're being touched, restart our timeline from "now"
+    // and stop looking for touches.
+    if (touchStrength > TOUCH_THRESHOLD) {
+      // millis() returns the "now" time in milliseconds since startup.  
       timeline.restartFrom(millis());
       shouldReadTouch = false;
     }
 
-    // 3 colors: Red, Green, Blue whose values range from 0-255.
-    const uint32_t boardColor = boardLED.Color(0, brightness, 0); // Somewhat bright green.
+    // 3 colors: Red, Green, Blue whose values range from 0-255.  Some LEDs have a 4th color, like white.
+    const uint32_t boardColor = boardLED.Color(0, brightness, 0); // Green.
     const uint32_t stripColor = stripLEDs.Color(0, 0, 0, brightness); // Colors are off, white LED is pure white.
-    
+
+    // Set all the LEDs of the board to "boardColor"
     setStripColors(boardLED, boardColor);
+    // Set all of the LEDs of the "strip" to "stripColor"
     setStripColors(stripLEDs, stripColor);
 
     // This sends the updated pixel color to the hardware.
@@ -89,6 +102,7 @@ void loop() {
     boardLED.show();
 }
 
+// Loop through all of the pixels in a strip and set them to the same color.
 void setStripColors(Adafruit_NeoPixel &strip, uint32_t color) {
     const int numPixels = strip.numPixels();
 
@@ -97,188 +111,71 @@ void setStripColors(Adafruit_NeoPixel &strip, uint32_t color) {
     }
 }
 
-void adil(TweenDuino::Timeline &timeline) {
-  // Dot
+// This timeline (memory permitting) will flash the morse-code for the name "Adil"
+// if used to control the brightness of a LED.
+void addTweensTo(TweenDuino::Timeline &timeline) {
+  
+  // Dot --------------------------------------------------------
+  // Change brightness to 255 over 50 milliseconds. (0.050 seconds)
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-      // Dash
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,150UL, 255.0));
+  // Change brightness to 0 over 50 milliseconds. (0.050 seconds)
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
 
-  // Space
+  // Dash -------------------------------------------------------   
+  // Change brightness to 255 over 50 milliseconds. (0.050 seconds)
+  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
+  // Hold the brightness at 255 for 150 milliseconds. (0.150 seconds)
+  timeline.add(*TweenDuino::Tween::to(brightness,150UL, 255.0));
+  // Drop the brightness to 0 over 50 milliseconds.(0.050 seconds)
+  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
+
+  // Space ------------------------------------------------------
+  // Hold the brightness at 0 for 150 milliseconds.
   timeline.add(*TweenDuino::Tween::to(brightness,150UL, 0.0));
 
 
-    // Dash
+  // Dash -------------------------------------------------------   
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,150UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
 
-    // Dot
+  // Dot --------------------------------------------------------
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
   
-  // Dot
+  // Dot --------------------------------------------------------
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
 
-    // Space
+  // Space ------------------------------------------------------
   timeline.add(*TweenDuino::Tween::to(brightness,150UL, 0.0));
 
-    // Dot
+  // Dot --------------------------------------------------------
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
 
-    // Dot
+  // Dot --------------------------------------------------------
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
 
-      // Space
+  // Space ------------------------------------------------------
   timeline.add(*TweenDuino::Tween::to(brightness,150UL, 0.0));
 
-      // Dot
+  // Dot --------------------------------------------------------
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
 
-      // Dash
+  // Dash -------------------------------------------------------   
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,150UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
 
-      // Dot
+  // Dot --------------------------------------------------------
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
 
-    // Dot
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-}
-
-void speckledCircle(TweenDuino::Timeline &timeline) {
-  
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,1500UL, 100.0));
-
-  // Blip
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 100.0));
-  
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,175, 125.0));
-
-  // Blips
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,150UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,150UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 125.0));
-
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,1500UL, 200.0));
-
-    // Blips
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 200.0));
-
-  timeline.add(*TweenDuino::Tween::to(brightness,755, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,1000, 150.0));
-
-  // Blips
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,150UL, 255.0));;
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 150.0));
-  
-  timeline.add(*TweenDuino::Tween::to(brightness,1000, 0.0));
-}
-
-void waveWithSpecklesInMiddle(TweenDuino::Timeline &timeline) {
-
-  // Set initial bright
-  timeline.add(*TweenDuino::Tween::to(brightness,100, 120.0));
-  
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,1000, 200.0));
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,1000, 120.0));
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,1000, 250.0));
-
-  // Blips
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 255.0));
-    timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 100.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 100.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,100UL, 150.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 250.0));
-
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,1000, 120.0));
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,1000, 200.0));
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,1000, 120.0));
-
-  // Smooth
-  timeline.add(*TweenDuino::Tween::to(brightness,100, 0.0));
-
-}
-
-void makeSOSTimeline(TweenDuino::Timeline &timeline) {
-  // Dot
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  // Dot
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  // Dot
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-
-  // Dash
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,1000UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  // Dash
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,1000UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  // Dash
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,1000UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  
-  // Dot
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  // Dot
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
-  // Dot
-  timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
+  // Dot --------------------------------------------------------
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 255.0));
   timeline.add(*TweenDuino::Tween::to(brightness,50UL, 0.0));
 }
+
